@@ -8,7 +8,14 @@ project workflow: explain end-to-end workflow
 The major concepts here are the write-ahead log (WAL), memory table (MemTable), (SSTable), and the log-structured merge tree (LSM tree). We want persistence, fast access, and accurate sorting. 
 
 ### What's Write-Ahead Logging?
-This is essentially keeping a journal of what happened and the changes that will happen BEFORE you apply it to the database. You can make them cute little diary entries. This helps ensure data persistence and recovery!
+This is essentially keeping a journal of what happened and the changes that will happen BEFORE you apply it to the database. You can make them cute little diary entries. This helps ensure data persistence and recovery! This means that each operation (set, del) will need to log these entries in the WAL - this helps us practice modular programming as well as object oriented programming.
+
+### Isn't this whole thing a "Memory Table?"
+Not quite. While our database stores key-value pairs, we use Memory Tables (MemTables) to make our database's writes much faster, providing quick access to recently written data (almost like a cache or sorting tray).
+
+Woah, what's this? the `bisect` library and `bisect_left()` - these are high level Python libraries and functions that allow us to insert values into a sorted list without constant re-sorting. Magically, it's O(logn) (because it uses a binary search to find the insertion point). Python is magic.
+
+
 
 performance: average running time of project and/or time complexity
 

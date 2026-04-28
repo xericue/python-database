@@ -1,4 +1,5 @@
 import os
+import shutil
 import pickle
 from typing import Any, Dict, Optional
 
@@ -44,28 +45,78 @@ class WALStore:
     
     def _append_wal(self, entry: WALEntry):
         """Write an entry to the transaction log."""
+        # This works in O(n) WHERE n is the length of entry.serialize()
+        # in bytes. The flush and other OS calls are O(1).
         try:
-            
+            with open(self.wal_file, "a") as transaction_log:
+                transaction_log.write(entry.serialize() + "\n")
+                transaction_log.flush() # WRITE it to disk
+                os.fsync(transaction_log.fileno()) # force disk write
         except IOError as e:
-            raise DatabaseError(f"Failed to write to WAL: {e}")
+            raise DatabaseError(f"couldnt track this one in the log bruh: {e}")
 
 
     # recovery (longggg list of operations)
     def _load(self):
-        if os.path.exists(self.filename):
-            with open(self.filename, 'rb') as new_file: # read binary format
-                self.data = pickle.load(new_file) # deserialize byte stream (pickled file) into a Python object
-    
-    def _save(self):
-        with open(self.filename, 'rb') as new_file:
-            # pickle.dump() opposes load - serialize Python obj. and write to file in binary format
-            pickle.dump(self.data, new_file)
+        try:
+            # first try loading the last checkpoint on the data_file
+            if os.path.exists(self.data_file):
+                with open(self.data_file, "rb") as checkpoint:
+                    self.data = pickle.load(checkpoint)
+                    # with automatically closes the stream for us
+            
+            # THEN, replay changes from WAL regardless
+            if os.path.exists(self.wal_file):
+                with open(self.wal_file, "r") as tracked_log:
+                    for line in tracked_log:
+                        if line.strip():
+                            entry = json.loads(line)
+                            
+                            if entry["operation"] == "set":
+                                # set in data[entry["key"]] to the value Yeah!!!
+                                self.data[entry["key"]] = entry["value"]
+                        
+                            elif entry["operation"] == "del":
+                                # DELETE IT!!! SAY GOODBYE!!!
+                                self.data.pop(entry["key"], None)
+        
+        except (IOError, json.JSONDecoreError, pickle.PickleError) as e:
+            raise DatabaseError(f"couldnt recover your database twin: {e}")
     
     def set(self, key: str, value: Any): # python typing and SET operation
+        """Enter a new KV pair with WAL using 'set'."""
+        # MAKE SURE TO SAVE TO WAL FIRST
+        entry = WALEntry("set", key, value)
+        self._append_wal(entry) # handles disk writing
         self.data[key] = value
-        self._save() # write to disk immediately
     
-    def get(self, key: str) -> Optional[Any]:
-        return self.data.get(key) # get the actual thing we want
-
+    def delete(self, key: str):
+        """Delete a key with WAL using 'del'."""
+        entry = WALEntry("del", key, None)
+        self._append_wal(entry) # handles disk writing
+        self.data.pop(key, None)
         
+    def checkpoint(self):
+        """Define a checkpoint of the current state."""
+        temp_file = f"{self.data_file}.tmp"
+        try:
+            # write to temporary file first
+            with open(temp_file, "wb") as f:
+                pickle.dump(self.data, f)
+                f.flush()
+                os.fsync(f.fileno())
+
+            # atomically replace old file - 
+            # directory management library
+            shutil.move(temp_file, self.data_file)
+
+            # Clear WAL - just truncate instead of opening in 'w' mode
+            if os.path.exists(self.wal_file):
+                with open(self.wal_file, "r+") as f:
+                    f.truncate(0)
+                    f.flush()
+                    os.fsync(f.fileno())
+        except IOError as e:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+            raise DatabaseError(f"Checkpoint failed: {e}")

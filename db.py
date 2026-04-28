@@ -21,22 +21,36 @@ class WALEntry:
             'value': self.value
         }) # json for readability
 
-class SimpleStore:
+class WALStore:
     """
-    This is the basis of our database. We get, set, and delete. Of course, 
-    with Python classes, we must clearly define our magic method 
-    constructor __init__ to initialize a database. We then define a _load
-    and a _save function to use internally: _load will call os.path.exists 
-    to check if data from the disk exists, and _save will save the data to
-    disk. Simple!
+    We keep track of two files: the data_file and the wal_file.
+
+    The data_file keeps all of our data periodically, like a backup.
+    The wal_file acts as our transaction log. Sort of like how a kitchen works.
+    What?
+
+    Recovery:
+    - load the last saved state from data_file
+    - replay all operations from WAL file
     """
+
     # create a new database using a file to store data
     # self.data is the in-memory dictionary
-    def __init__(self, filename, str):
-        self.filename = filename
+    def __init__(self, data_file: str, wal_file: str):
+        self.data_file = data_file
+        self.wal_file = wal_file
         self.data = Dict[str, Any] = {} # type hinting
-        self._load() # disk loading
+        self._recover() # disk loading
     
+    def _append_wal(self, entry: WALEntry):
+        """Write an entry to the transaction log."""
+        try:
+            
+        except IOError as e:
+            raise DatabaseError(f"Failed to write to WAL: {e}")
+
+
+    # recovery (longggg list of operations)
     def _load(self):
         if os.path.exists(self.filename):
             with open(self.filename, 'rb') as new_file: # read binary format

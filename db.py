@@ -1,7 +1,7 @@
 import os
 import shutil
 import pickle
-import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Iterator, Tuple
 
 class DatabaseError(Exception):
@@ -9,7 +9,7 @@ class DatabaseError(Exception):
 
 class WALEntry:
     def __init__(self, operation: str, key: str, value: Any):
-        self.timestamp = datetime.utcnow().isoformat()
+        self.timestamp = datetime.now(timezone.utc)
         self.operation = operation # set or del type thing
         self.key = key
         self.value = value

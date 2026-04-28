@@ -135,8 +135,12 @@ class MemTable:
 
     def add(self, key: str, value: Any):
         """Add or update a KV pair."""
-        # TODO:
-        pass
+        index = bisect.bisect_left([k for k, _ in self.entries], key)
+        if index < len(self.entries) and self.entries[index][0] == key:
+            # because this is getting, from the entries, the key (first element of the Tuple).
+            self.entries[index] = (key, value) 
+        else:
+            self.entries.insert(index, (key, value))
     
     def get(self, key: str) -> Optional[Any]:
         """Get a value from a key."""

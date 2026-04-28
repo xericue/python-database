@@ -2,7 +2,14 @@
 
 project overview: this is a database implemented from scratch in Python. No SQL or SQLite, just the implementation.
 
+- [ ] implement sstable
+- [ ] implement memtable fully
+- [ ] implement the actual LSM tree
+- [ ] migrate from a sorted list with binary search to a skip list (apparently adjacent to leveldb and rocksdb)
+
+
 data structure concepts used: LSM tree, database storage, hashing. Since a hash map is a very common data structure used in our homeworks and a database is a well-known tool in almost all apps and companies around the world, I wanted to learn about its implementation a bit more.
+Binary search is used in the mem table (literally textbook binary search: the index bisects the list and then inserts if the index is equal to the necessary key in the memtable).
 
 project workflow: explain end-to-end workflow
 The major concepts here are the write-ahead log (WAL), memory table (MemTable), (SSTable), and the log-structured merge tree (LSM tree). We want persistence, fast access, and accurate sorting. 
@@ -24,6 +31,9 @@ challenges:
 improvements:
 
 learning:
+### Why use Python Tuple typing?
+Type hints are essentially what Python lack. 
+typing.Tuple lets us specify a specific number of elements expected and the type of each position, allowing our code to be more /strict/. It's not too horrible though - we could use tuple(float, float) if need be.
 
 real-world relevance:
 
@@ -32,5 +42,3 @@ use of ai-tools:
 
 expected I/O: input of commands (GET/SET/DEL), output: persistent storage and returned user data
 space and time complexity: O(1) for most operations
-
-150 characters this must be !!!

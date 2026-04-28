@@ -1,7 +1,7 @@
 import os
 import shutil
 import pickle
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Iterator, Tuple
 
 class DatabaseError(Exception):
     pass
@@ -120,3 +120,37 @@ class WALStore:
             if os.path.exists(temp_file):
                 os.remove(temp_file)
             raise DatabaseError(f"Checkpoint failed: {e}")
+
+class MemTable:
+    """This is the internal data structure that allows us to maintain a sorted order in memory,
+    enabling efficient reads and range queries. New items go in here first, then, when it gets
+    full, you file them away in SSTables. This is sort of like a loading dock that gets loaded
+    and flushed constantly."""
+
+    def __init__(self, max_size: int = 1000):
+        # all entries in the memtable
+        # again, think of this as a cache that gets flushed at capacity
+        self.entries: List[Tuple[str, Any]] = []
+        self.max_size = max_size
+
+    def add(self, key: str, value: Any):
+        """Add or update a KV pair."""
+        # TODO:
+        pass
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Get a value from a key."""
+        # TODO:
+        
+        return None
+     
+    def is_full(self) -> bool:
+        """Check if length of entries >= max_size."""
+        return len(self.entries) >= self.max_size
+    
+    def range_scan(self, start: str, end: str) -> Iterator[Tuple[str, Any]]:
+        """Scan entries within the key range."""
+        # TODO:
+        pass
+
+

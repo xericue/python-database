@@ -7,6 +7,9 @@ data structure concepts used: LSM tree, database storage, hashing. Since a hash 
 project workflow: explain end-to-end workflow
 The major concepts here are the write-ahead log (WAL), memory table (MemTable), (SSTable), and the log-structured merge tree (LSM tree). We want persistence, fast access, and accurate sorting. 
 
+### What's Write-Ahead Logging?
+This is essentially keeping a journal of what happened and the changes that will happen BEFORE you apply it to the database. You can make them cute little diary entries. This helps ensure data persistence and recovery!
+
 performance: average running time of project and/or time complexity
 
 challenges:

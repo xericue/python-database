@@ -5,7 +5,11 @@ project overview: this is a database implemented from scratch in Python. No SQL 
 - [ ] implement sstable
 - [ ] implement memtable fully
 - [ ] implement the actual LSM tree
-- [ ] migrate from a sorted list with binary search to a skip list (apparently adjacent to leveldb and rocksdb)
+- [ ] migrate from a sorted list with binary search in the memtable to a skip list (apparently adjacent to leveldb and rocksdb)
+- [ ] generate unit tests
+- [ ] personally try the database
+- [ ] record a video
+- [ ] fix readme
 
 
 data structure concepts used: LSM tree, database storage, hashing. Since a hash map is a very common data structure used in our homeworks and a database is a well-known tool in almost all apps and companies around the world, I wanted to learn about its implementation a bit more.

@@ -145,9 +145,12 @@ class MemTable:
     
     def get(self, key: str) -> Optional[Any]:
         """Get a value from a key."""
-        # TODO:
-        
-        return None
+        index = bisect.bisect_left([k for k, _ in self.entries], key)
+        if index < len(self.entries) and self.entries[index][0] == key:
+            # because this is getting, from the entries, the key (first element of the Tuple).
+            return self.entries[index][1] # out of (key, value), return value 
+        else:
+            return None
      
     def is_full(self) -> bool:
         """Check if length of entries >= max_size."""
@@ -155,7 +158,85 @@ class MemTable:
     
     def range_scan(self, start: str, end: str) -> Iterator[Tuple[str, Any]]:
         """Scan entries within the key range."""
-        # TODO:
-        pass
+        start_idx = bisect.bisect_left([k for k, _ in self.entries], start)
+        end_idx = bisect.bisect_left([], end)
+        return iter(self.entries[start_idx:end_idx])
 
+class SSTable:
+    # This is a Sorted String Table: how our MemTable actually is saved to disk;
+    # the middleman operating between the MemTable and our persistence. Remember 
+    # that our WAL is simply a logger of opreations.
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.index: Dict[str, int] = {} # typed
 
+        # if we already have the filename on hand, go ahead and load it
+        if os.path.exists(filename):
+            self._load_index()
+
+        def _load_index(self):
+            try:
+                with open(self.filename, "rb") as existing_file:
+                    existing_file.seek(0) # move file cursor to beginning of file
+                    index_pos = int.from_bytes(f.read(8), "big") # read 8 bytes
+
+                    # read index from end of file
+                    f.seek(index_pos)
+                    self.index = pickle.load(f)
+
+            except (IOError, pickle.PickleError) as e:
+                raise DatabaseError(f"yo SSTable index failed bruh: {e}")
+    
+    def write_to_memtable(self, memtable: MemTable):
+        """Save MemTable to disk as SSTable."""
+        temp_file = f"{self.filename}.tmp"
+        try:
+            with open(temp_file, "wb") as f:
+                # write index size for recovery
+                beginning = f.tell() # find file cursor; returns how many bytes from start position
+                f.write(b"\0" * 8) # placeholder for index position
+
+                # write the data!
+                for key, value in memtable.entries:
+                    offset = f.tell()
+                    self.index[key] = offset
+                    entry = pickle.dumps((key, value))
+                    f.write(len(entry).to_bytes(4, "big"))
+                    f.write(entry)
+
+                # write index at end
+                index_offset = f.tell()
+                pickle.dump(self.index, f) # again - serialize python obj. into byte stream and write it to a file stream 
+
+                # update index position at start of file again
+                f.seek(beginning)
+                f.write(index_offset.to_bytes(8, "big"))
+
+                f.flush()
+                os.fsync(f.fileno())
+
+            # atomically rename temp file
+            shutil.move(temp_file, self.filename)
+
+        except IOError as e:
+            if os.path.exists(temp_file):
+                os.remove(temp_file) # cancel the operation
+            raise DatabaseError(f"yeah something went wrong with IO, couldnt write to SSTable: {e}")
+
+    def get(self, key:str) -> Optional[Any]:
+        """Get the actual value from a key in the SSTable."""
+
+        if key not in self.index:
+            return None
+
+        try:
+            with open(self.filename, "rb") as f:
+                f.seek(self.index[key]) # move file cursor to value (index[key])
+                size = int.from_bytes(f.read(4), "big")
+                entry = pickle.loads(f.read(size))
+                return entry[1]
+        except (IOError, pickle.PickleError) as e:
+            raise DatabaseError(f"couldnt read from SSTable, yo... fix that...: {e}")
+
+    def range_scan(self, start_key: str, end_key: str) -> Iterator[Tuple[str, Any]]:
+        """Scan entries within a range in the SSTable."""

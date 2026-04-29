@@ -4,9 +4,23 @@ import pickle
 import json
 import bisect
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Iterator, Tuple
+from typing import Any, Dict, Optional, Iterator, Tuple, List
 from pathlib import Path # file system path for type hinting
 import threading # for RLock: synchronization mechanism for "mutual exclusion"
+
+class _TombstoneType:
+    """Sentinel for deleted keys."""
+    def __repr__(self):
+        return "TOMBSTONE"
+    
+    def __reduce__(self):
+        return (_get_tombstone, ())
+    
+def _get_tombstone():
+    return _TOMBSTONE
+
+_TOMBSTONE = _TombstoneType()
+
 
 class DatabaseError(Exception):
     pass
@@ -247,7 +261,7 @@ class SSTable:
         keys = sorted(k for k in self.index.keys() if start_key <= k <= end_key)
         for key in keys:
             value = self.get(key)
-            if value is not None:
+            if value is not _TOMBSTONE:
                 yield (key, value)
     
 class LSMTree:
@@ -338,12 +352,16 @@ class LSMTree:
             # this is because memtable might have some stuff not in disk yet because
             # its the newest
             value = self.memtable.get(key)
+            if value is _TOMBSTONE:
+                return None
             if value is not None:
                 return value
             
             # otherwise, resort to checking disk (ugh!)
             for sstable in reversed(self.sstables): # CHECK NEWEST SSTABLE TO OLDEST
                 value = sstable.get(key)
+                if value is _TOMBSTONE:
+                    return None
                 if value is not None:
                     return value
             
@@ -352,18 +370,20 @@ class LSMTree:
     def range_query(self, start_key: str, end_key: str) -> Iterator[Tuple[str, Any]]:
         """Perform a range query. List all employees with experience years
         from 3 to 5 type queries."""
+        seen = set()
 
         with self.lock:
             for key, value in self.memtable.range_scan(start_key, end_key):
-                yield (key, value) # HOLY GENERATOR
+                seen.add(key)
+                if value is not _TOMBSTONE:
+                    yield (key, value) # HOLY GENERATOR
         
             # get the resulting queries from each SSTable
-            seen = set()
             for sstable in reversed(self.sstables): # CHECK NEWEST SSTABLE TO OLDEST
                 for key, value in sstable.range_scan(start_key, end_key):
                     if key not in seen:
                         seen.add(key)
-                        if value is not None: # skip tombstones - marker that a piece
+                        if value is not _TOMBSTONE: # skip tombstones - marker that a piece
                         # of data has been deleted rather than immediately removed
                             yield (key, value)
 
@@ -374,7 +394,8 @@ class LSMTree:
             merged = MemTable(max_size = float('inf'))
 
             for sstable in self.sstables:
-                for key, value in sstable.range_scan("", "~"): # full range
+                for key in sorted(sstable.index.keys()): # full range
+                    value = sstable.get(key)
                     merged.add(key, value)
 
             new_sstable = SSTable(str(self.base_path / "sstable_compacted.db"))
@@ -396,7 +417,7 @@ class LSMTree:
         """Delete a key! Oh no!"""
         with self.lock:
             self.wal.delete(key)
-            self.set(key, None) # use None as a tombstone :p this comes up in dist sys
+            self.memtable.add(key, _TOMBSTONE) # use None as a tombstone :p this comes up in dist sys
     
     def close(self):
         """Ensure all data is persisted to disk..."""
@@ -411,6 +432,8 @@ def main():
     db = LSMTree("./mydb")
     print("yo welcome to the write-heavy database bruh. you got a few commands:")
     print("set <key> <value>\nget <key>\ndel <key>\nrange <start> <end>\nexit\n")
+    print("example of range:\ndb> set item:001 bruh\ndb> set item:002 bruhh\ndb> range item:001 item:002\nitem:001:    bruh\nitem:002:    bruhh\n")
+    
 
     try:
         while True:
@@ -438,7 +461,7 @@ def main():
                 
                 elif cmd == "get":
                     value = db.get(parts[1].strip())
-                    if not value:
+                    if value is None:
                         print("yo son i did NOT find that")
                     else:
                         print(value)

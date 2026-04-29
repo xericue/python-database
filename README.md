@@ -5,7 +5,7 @@ project overview: this is a write-heavy database implemented from scratch in Pyt
 - [x] implement sstable
 - [x] implement memtable fully
 - [x] implement the actual LSM tree
-- [ ] generate unit tests
+- [x] generate unit tests
 - [x] personally try the database
 - [ ] record a video
 - [ ] fix readme

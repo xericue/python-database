@@ -1,6 +1,6 @@
 # Write-Heavy Database in Python
 
-project overview: this is a write-heavy database implemented from scratch in Python. No SQL or SQLite, just the implementation. systems that require large volumes of data with strict latency requirements for writing more than they read (logging and monitoring systems, financial transaction). while my initial goals for this project are silly (store "bruh" -> "gurt", "dylan" -> "goat"), i hope to scale this in the future, possibly for high-frequency trading!
+project overview: this is a write-heavy database implemented from scratch in Python. No SQL or SQLite, just the implementation. while my initial goals for this project are silly (set "bruh" -> "gurt", set "dylan" -> "goat"), i hope to scale this in the future, possibly for high-frequency trading!
 
 - [x] implement sstable
 - [x] implement memtable fully
@@ -19,12 +19,20 @@ future goals
 - [ ] implement MVCC (multi-version concurrency control) - instead of locking on writes, create a new version of a key w/ timestamp; reads snapshot database
 - [ ] look into database indexing?...
 
-## data structure concepts used
+## Data Structure Concepts Used
 LSM tree, database storage, hashing. Since a hash map is a very common data structure used in our homeworks and a database is a well-known tool in almost all apps and companies around the world, I wanted to learn about its implementation a bit more.
 Binary search is used in the mem table (literally textbook binary search: the index bisects the list and then inserts if the index is equal to the necessary key in the memtable).
 
-## project workflow
+## Project Workflow
 The major concepts here are the write-ahead log (WAL), memory table (MemTable), (SSTable), and the log-structured merge tree (LSM tree). We want persistence, fast access, and accurate sorting. 
+- set through CLI -> WAL write and MemTable initialization
+- if MemTable is full: flush into an SSTable, set a WAL checkpoint
+- if too many SSTables - compact()
+
+- get through CLI -> check MemTable
+- if found - return from MemTable, continue CLI loop
+- if not, go check the SSTables (icky disk reading)
+- if not found at all, return None
 
 ### What's Write-Ahead Logging?
 This is essentially keeping a journal of what happened and the changes that will happen BEFORE you apply it to the database. You can make them cute little diary entries. This helps ensure data persistence and recovery! This means that each operation (set, del) will need to log these entries in the WAL - this helps us practice modular programming as well as object oriented programming.
@@ -63,21 +71,26 @@ Hold on, we're just trying to synchronize data. First off, we're using **locks**
 
 ###### ...What?
 Okay, threading is a whole different thing. For now, we're trying to prevent race conditions and ensure thread safety. When we write to our database, we're going to test it rigorously with many threads (independent flows of control in a SINGLE program that share resources). 
-performance: average running time of project and/or time complexity
 
-challenges:
+# Expected I/O
+Input commands in the CLI (get set del range exit)
+Output files in the repository with data that persists !!!
 
-improvements:
-
-learning:
-### Why use Python Tuple typing?
-Type hints are essentially what Python lack. 
-typing.Tuple lets us specify a specific number of elements expected and the type of each position, allowing our code to be more /strict/. It's not too horrible though - we could use tuple(float, float) if need be.
-
-real-world relevance:
-
-use of ai-tools:
+# Performance
+In the main LSMTree, the `set` and `get` operations are O(n) (MemTable list comprehensions and SSTable look ups). Flushing MemTables to SSTables is O(n log n). A skip list will give us a true O(log n) instead of our O(n) because of our MemTable list comprehension, as, every time we have to search for an item, we rebuild the entries from scratch (`[k for k, _ in self.entries]`). It should be an O(log n) binary search, but it's really O(n) here.
 
 
-expected I/O: input of commands (GET/SET/DEL), output: persistent storage and returned user data
-space and time complexity: O(1) for most operations
+# Challenges
+The WAL, MemTable, and SSTable all interface with one another and build to create the LSM Tree at the end, which is quite difficult to keep track of. 
+
+# Improvements
+I'd love to implement this with a skiplist to practice concurrency as well as explore more threading. These two as well as the OOP of this practice naturally align well with C++, and I'd love to see how this could be fleshed out.
+
+# Learning
+Learned a lot about the internals of modern database engines and infrastructure! I had never thought that a database would actually interface with the OS to plant files inside of it (as we do here with the repository)... As I did a bit more research, I actually saw so many data structures and algorithms come to life to build the technologies we know today (AVL trees/any self-balancing tree being used for O(log n) get/set/del, binary search, many hash maps...).
+
+# Real World Relevance
+systems that require large volumes of data with strict latency requirements for writing more than they read (logging and monitoring systems, financial transaction). with my future implementations, i may start benchmarking against Google's LevelDB and Meta's RocksDB, which are production-ready databases that utilize these similar features. 
+
+# Use of AI Tools
+I generated unit tests after writing a few for each class. I also used it for general fact checking (misspelling variables/inconsistent variables). I did this throughout the project and committed/tested frequently, but some implicit errors snuck by me.

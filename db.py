@@ -3,6 +3,8 @@ import shutil
 import pickle
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Iterator, Tuple
+from pathlib import Path # file system path for type hinting
+import threading # for RLock: synchronization mechanism for "mutual exclusion"
 
 class DatabaseError(Exception):
     pass
@@ -245,3 +247,117 @@ class SSTable:
             value = self.get(key)
             if value is not None:
                 yield (key, value)
+    
+class LSMTree:
+    def __init__(self, base_path: str):
+        self.base_path = Path(base_path)
+        try:
+            # check if path exits and is a file; if not, raise error
+            if self.base_path.exists() and self.base_path.is_file():
+                raise DatabaseError(f"cannot create db: '{base_path}' is a file")
+
+            self.base_path.mkdir(parents=True, exist_ok=True)
+
+        except (OSError, FileExistsError) as e:
+            raise DatabaseError(f"couldnt initialize your db :( at '{base_path}': {str(e)}")
+
+        # HERE WE GO
+        # our "inbox" for new data - temporary memtable w/ size of 1000
+        self.memtable = MemTable(max_size = 1000)
+
+        # our folders of sorted data future-ly flushed from our MemTable
+        self.sstables: List[SSTable] = []
+        # We actually have multiple sorted string tables in our disk. Our MemTable is one middleman
+        # that brings multiple SSTables... to the table... yeah...
+
+        self.max_sstables = 5 # limit on our SSTables, come on now
+        self.lock = RLock()
+
+        self.wal = WALStore(str(self.base_path / "data.db"), str(self.base_path / "wal.log"))
+
+        self._load_sstables()
+
+        if len(self.sstables) > self.max_sstables:
+            self._compact() # start compacting so that we dont exceed our max of sstables
+
+    def _load_sstables(self):
+        """Load in existing SSTables from disk."""
+        self.sstables.clear()
+
+        for file in sorted(self.base_path.glob("sstable_*.db")): # simple regex
+            self.sstables.append(SSTable(str(file)))
+
+    def set(self, key: str, value: Any):
+        """Set your very own key-value pair. Using our lock, we write key and value
+        to our WAL, MemTable (and flush it to disk if our MemTable is full). 
+        "Using our lock" - remember how "with" allows us to utilize a resource and
+        close it automatically like files? We can do the same with Lock/RLock.
+        """
+
+        with self.lock:
+            if not isinstance(key, str):
+                raise ValueError("dude your key has to be a string LOL")
+            
+            # write transaction to WAL
+            self.wal.set(key, value) # WAL has its own set/get!
+
+            # write to MemTable
+            self.memtable.add(key, value)
+
+            if self.memtable.is_full():
+                self._flush_memtable()
+    
+    def _flush_memtable(self):
+        """Flush MemTable to disk as a new SSTable, ensuring we don't hit our max SSTables."""
+        if not self.memtable.entries:
+            return # skip if empty
+        
+        new_sstable = SSTable(str(self.base_path / f"sstable_{len(self.sstables)}.db"))
+        new_sstable.write_to_memtable(self.memtable)
+        self.sstables.append(new_sstable)
+
+        self.memtable = MemTable()
+
+        # create a checkpoint in WAL
+        self.wal.checkpoint()
+
+        # compact
+        if len(self.sstables) > self.max_sstables:
+            self._compact()
+
+    def get(self, key: str) -> Optional[Any]:
+        """With a key, get a value. We ensure that this is a lock operation."""
+
+        with self.lock:
+            if not isinstance(key, str):
+                raise ValueError("dude your key has to be a string LOL")
+        
+            # check memtable first
+            value = self.memtable.get(key)
+            if value is not None:
+                return value
+            
+            for sstable in reversed(self.sstables): # CHECK NEWEST SSTABLE TO OLDEST
+                value = sstable.get(key)
+                if value is not None:
+                    return value
+            
+            return None # entire for loop has gone and it wasnt found; return None
+
+    def range_query(self, start_key: str, end_key: str) -> Iterator[Tuple[str, Any]]:
+        """Perform a range query. List all employees with experience years
+        from 3 to 5 type queries."""
+
+        with self.lock:
+            for key, value in self.memtable.range_scan(start_key, end_key):
+                yield (key, value) # HOLY GENERATOR
+        
+            # get the resulting queries from each SSTable
+            seen = set()
+            for sstable in reversed(self.sstables): # CHECK NEWEST SSTABLE TO OLDEST
+                for key, value in self.memtable.range_scan(start_key, end_key):
+                    if key not in seen:
+                        seen_keys.add(key)
+                        if value is not None: # skip tombstones - marker that a piece
+                        # of data has been deleted rather than immediately removed
+                            yield (key, value)

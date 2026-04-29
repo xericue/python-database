@@ -33,7 +33,28 @@ Woah, what's this? the `bisect` library and `bisect_left()` - these are high lev
 ### All right, what's this LSM Tree you're on about?
 This is a Log-Structured Merge tree, a data structure that efficiently stores and retrieves key-value pairs, particularly for high-write volumes. The LSM tree achieves this with a combination of in-memory storage (our temporary MemTables) and disk-based storage (when we flush the MemTables to the disk as an SSTable - an immutable on-disk storage format). Imagine you're in your office: new papers go in your inbox; when your inbox is full, you sort it and put it in a folder; when you have many folders, you put them into a box and merge them (compaction). 
 
-### Okay, why are we threading? I thought this was just a database!
+#### Dude, why are we compacting? 
+Because, imagine we stop our SSTables at, like, two keys each, and then we hit our maximum SSTables. LAME! We can compact them so that each compacted SSTable holds more key value pairs - starting it off slow just makes traversal easier when we have so many writes.
+
+```
+# Before compaction:
+sstables: [
+    sstable_0.db: [("apple", 1), ("banana", 2)],
+    sstable_1.db: [("banana", 3), ("cherry", 4)],
+    sstable_2.db: [("apple", 5), ("date", 6)]
+]
+
+# After compaction:
+sstables: [
+    sstable_compacted.db: [
+        ("apple", 5),    # Latest value wins
+        ("banana", 3),   # Latest value wins
+        ("cherry", 4),
+        ("date", 6) ]
+    ]
+```
+
+#### Okay, why are we threading? I thought this was just a database!
 Hold on, we're just trying to synchronize data. First off, we're using **locks**: ensuring that only one thread can access a shared resource at a time. This comes with mutual exclusion (only one thread holds the lock at a time) and blocking behavior (threads will wait until lock is released if they try to acquire a locked lock). However, we're using an `RLock()`, a reentrant lock - a thread can acquire the same lock multiple times without causing deadlock (a thread may need to acquire a lock again while already holding the lock). 
 
 ###### ...What?

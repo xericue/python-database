@@ -333,10 +333,13 @@ class LSMTree:
                 raise ValueError("dude your key has to be a string LOL")
         
             # check memtable first
+            # this is because memtable might have some stuff not in disk yet because
+            # its the newest
             value = self.memtable.get(key)
             if value is not None:
                 return value
             
+            # otherwise, resort to checking disk (ugh!)
             for sstable in reversed(self.sstables): # CHECK NEWEST SSTABLE TO OLDEST
                 value = sstable.get(key)
                 if value is not None:
@@ -361,3 +364,28 @@ class LSMTree:
                         if value is not None: # skip tombstones - marker that a piece
                         # of data has been deleted rather than immediately removed
                             yield (key, value)
+
+    # and finally, we compact - merge multiple sstables into one
+    def _compact(self):
+        """Merge multiple SSTables into one."""
+        try:
+            merged = MemTable(max_size = float('inf'))
+
+            for sstable in self.sstables:
+                for key, value in sstable.range_scan("", "~"): # full range
+                    merged.add(key, value)
+
+            new_sstable = SSTable(str(self.base_path / "sstable_compacted.db"))
+            new_sstable.write_to_memtable(merged)
+
+            old_files = [sst.filename for sst in self.sstables]
+            self.sstables = [new_sstable]
+
+            for file in old_files:
+                try:
+                    os.remove(file)
+                except OSError:
+                    pass # js continue bruh
+
+        except Exception as e:
+            raise DatabaseError(f"compacting failed: {e}")

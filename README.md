@@ -1,19 +1,23 @@
-# Write-Heavy Databse in Python
+# Write-Heavy Database in Python
 
 project overview: this is a write-heavy database implemented from scratch in Python. No SQL or SQLite, just the implementation. systems that require large volumes of data with strict latency requirements for writing more than they read (logging and monitoring systems, financial transaction). while my initial goals for this project are silly (store "bruh" -> "gurt", "dylan" -> "goat"), i hope to scale this in the future, possibly for high-frequency trading!
 
 - [x] implement sstable
 - [x] implement memtable fully
-- [ ] implement the actual LSM tree
+- [x] implement the actual LSM tree
 - [ ] generate unit tests
-- [ ] personally try the database
+- [x] personally try the database
 - [ ] record a video
 - [ ] fix readme
 
-far future goals
-- [ ] turn to C++
-- [ ] following that, explore atomicity and concurrency; possibly lock-free data structures?
-- [ ] migrate from a sorted list with binary search in the memtable to a skip list (apparently adjacent to leveldb and rocksdb)
+future goals
+- [ ] migrate from a sorted list with binary search in the memtable to a skip list (possible benchmarks against Google's LevelDB and Meta's RocksDB)
+- [ ] more levels to the LSM tree
+- [ ] convert to C++
+- [ ] following that, explore atomicity and concurrency; possibly a lock-free data structure?
+- [ ] write benchmark script (sets/gets/range at 1k, 10k, 100k entries)
+- [ ] implement MVCC (multi-version concurrency control) - instead of locking on writes, create a new version of a key w/ timestamp; reads snapshot database
+- [ ] look into database indexing?...
 
 ## data structure concepts used
 LSM tree, database storage, hashing. Since a hash map is a very common data structure used in our homeworks and a database is a well-known tool in almost all apps and companies around the world, I wanted to learn about its implementation a bit more.

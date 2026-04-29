@@ -410,7 +410,7 @@ class LSMTree:
 def main():
     db = LSMTree("./mydb")
     print("yo welcome to the write-heavy database bruh. you got a few commands:")
-    print("set <key> <value>\nget <key>\ndel <key>\nrange <start> <end>\nexit")
+    print("set <key> <value>\nget <key>\ndel <key>\nrange <start> <end>\nexit\n")
 
     try:
         while True:

@@ -1,9 +1,9 @@
-# python-database
+# Write-Heavy Databse in Python
 
-project overview: this is a database implemented from scratch in Python. No SQL or SQLite, just the implementation.
+project overview: this is a write-heavy database implemented from scratch in Python. No SQL or SQLite, just the implementation. systems that require large volumes of data with strict latency requirements for writing more than they read (logging and monitoring systems, financial transaction)
 
-- [ ] implement sstable
-- [ ] implement memtable fully
+- [x] implement sstable
+- [x] implement memtable fully
 - [ ] implement the actual LSM tree
 - [ ] migrate from a sorted list with binary search in the memtable to a skip list (apparently adjacent to leveldb and rocksdb)
 - [ ] generate unit tests

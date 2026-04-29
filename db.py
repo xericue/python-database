@@ -240,3 +240,8 @@ class SSTable:
 
     def range_scan(self, start_key: str, end_key: str) -> Iterator[Tuple[str, Any]]:
         """Scan entries within a range in the SSTable."""
+        keys = sorted(k for k in self.index.keys() if start_key <= k <= end_key)
+        for key in keys:
+            value = self.get(key)
+            if value is not None:
+                yield (key, value)

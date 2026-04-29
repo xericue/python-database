@@ -1,16 +1,32 @@
 # Write-Heavy Database in Python
 
-project overview: this is a write-heavy database implemented from scratch in Python. No SQL or SQLite, just the implementation. while my initial goals for this project are silly (set "bruh" -> "gurt", set "dylan" -> "goat"), i hope to scale this in the future, possibly for high-frequency trading!
+project overview: this is a write-heavy database implemented from scratch in Python. No SQL or SQLite, just the implementation. 
+- working KV storage engine
+- write ahead log (WAL)
+- MemTable
+- SSTables for flushing to disk
+- LSM-Tree (Log-Structured Merge Tree)
+- Tombstone class to mark deleted keys
+- persistent memory storage
+- interactive CLI/REPL
+- thread-safe
 
+ while my initial goals for this project are silly (set "bruh" -> "gurt", set "dylan" -> "goat"), i hope to scale this in the future, possibly for high-frequency trading!
+
+
+### How can I run this?
+Copy the repository and just... Go. `make` will run it all for you. `make clean` to clean the database remnants and `make test` to see the unit tests in action.
+
+# Checklist
 - [x] implement sstable
 - [x] implement memtable fully
 - [x] implement the actual LSM tree
 - [x] generate unit tests
 - [x] personally try the database
-- [ ] record a video
+- [x] record a video
 - [x] fix readme
 
-future goals
+# Future Goals
 - [ ] migrate from a sorted list with binary search in the memtable to a skip list (possible benchmarks against Google's LevelDB and Meta's RocksDB)
 - [ ] more levels to the LSM tree
 - [ ] convert to C++
@@ -20,11 +36,13 @@ future goals
 - [ ] look into database indexing?...
 
 ## Data Structure Concepts Used
-LSM tree, database storage, hashing. Since a hash map is a very common data structure used in our homeworks and a database is a well-known tool in almost all apps and companies around the world, I wanted to learn about its implementation a bit more.
-Binary search is used in the mem table (literally textbook binary search: the index bisects the list and then inserts if the index is equal to the necessary key in the memtable).
+- Hash maps: since a hash map is a very common data structure used in our homeworks and a database is a well-known tool in almost all apps and companies around the world, I wanted to learn about its implementation a bit more... Which is ultimately a database!
+- Binary search: used in the mem table (literally textbook binary search: the index bisects the list and then inserts if the index is equal to the necessary key in the memtable).
+- LSM-Tree: Lists and maintaining key-value pairs in memory
 
 ## Project Workflow
 The major concepts here are the write-ahead log (WAL), memory table (MemTable), (SSTable), and the log-structured merge tree (LSM tree). We want persistence, fast access, and accurate sorting. 
+
 - set through CLI -> WAL write and MemTable initialization
 - if MemTable is full: flush into an SSTable, set a WAL checkpoint
 - if too many SSTables - compact()
@@ -74,6 +92,7 @@ Okay, threading is a whole different thing. For now, we're trying to prevent rac
 
 # Expected I/O
 Input commands in the CLI (get set del range exit)
+
 Output files in the repository with data that persists !!!
 
 # Performance

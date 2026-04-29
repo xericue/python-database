@@ -8,7 +8,7 @@ project overview: this is a write-heavy database implemented from scratch in Pyt
 - [x] generate unit tests
 - [x] personally try the database
 - [ ] record a video
-- [ ] fix readme
+- [x] fix readme
 
 future goals
 - [ ] migrate from a sorted list with binary search in the memtable to a skip list (possible benchmarks against Google's LevelDB and Meta's RocksDB)

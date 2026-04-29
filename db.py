@@ -1,6 +1,8 @@
 import os
 import shutil
 import pickle
+import json
+import bisect
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Iterator, Tuple
 from pathlib import Path # file system path for type hinting
@@ -11,7 +13,7 @@ class DatabaseError(Exception):
 
 class WALEntry:
     def __init__(self, operation: str, key: str, value: Any):
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = datetime.now().isoformat()
         self.operation = operation # set or del type thing
         self.key = key
         self.value = value
@@ -43,7 +45,7 @@ class WALStore:
     def __init__(self, data_file: str, wal_file: str):
         self.data_file = data_file
         self.wal_file = wal_file
-        self.data = Dict[str, Any] = {} # type hinting
+        self.data: Dict[str, Any] = {} # type hinting
         self._recover() # disk loading
     
     def _append_wal(self, entry: WALEntry):
@@ -60,7 +62,7 @@ class WALStore:
 
 
     # recovery (longggg list of operations)
-    def _load(self):
+    def _recover(self):
         try:
             # first try loading the last checkpoint on the data_file
             if os.path.exists(self.data_file):
@@ -83,7 +85,7 @@ class WALStore:
                                 # DELETE IT!!! SAY GOODBYE!!!
                                 self.data.pop(entry["key"], None)
         
-        except (IOError, json.JSONDecoreError, pickle.PickleError) as e:
+        except (IOError, json.JSONDecodeError, pickle.PickleError) as e:
             raise DatabaseError(f"couldnt recover your database twin: {e}")
     
     def set(self, key: str, value: Any): # python typing and SET operation
@@ -161,7 +163,7 @@ class MemTable:
     def range_scan(self, start: str, end: str) -> Iterator[Tuple[str, Any]]:
         """Scan entries within the key range."""
         start_idx = bisect.bisect_left([k for k, _ in self.entries], start)
-        end_idx = bisect.bisect_left([], end)
+        end_idx = bisect.bisect_right([k for k, _ in self.entries], end)
         return iter(self.entries[start_idx:end_idx])
 
 class SSTable:
@@ -176,18 +178,18 @@ class SSTable:
         if os.path.exists(filename):
             self._load_index()
 
-        def _load_index(self):
-            try:
-                with open(self.filename, "rb") as existing_file:
-                    existing_file.seek(0) # move file cursor to beginning of file
-                    index_pos = int.from_bytes(f.read(8), "big") # read 8 bytes
+    def _load_index(self):
+        try:
+            with open(self.filename, "rb") as existing_file:
+                existing_file.seek(0) # move file cursor to beginning of file
+                index_pos = int.from_bytes(existing_file.read(8), "big") # read 8 bytes
 
-                    # read index from end of file
-                    f.seek(index_pos)
-                    self.index = pickle.load(f)
+                # read index from end of file
+                existing_file.seek(index_pos)
+                self.index = pickle.load(existing_file)
 
-            except (IOError, pickle.PickleError) as e:
-                raise DatabaseError(f"yo SSTable index failed bruh: {e}")
+        except (IOError, pickle.PickleError) as e:
+            raise DatabaseError(f"yo SSTable index failed bruh: {e}")
     
     def write_to_memtable(self, memtable: MemTable):
         """Save MemTable to disk as SSTable."""
@@ -271,7 +273,7 @@ class LSMTree:
         # that brings multiple SSTables... to the table... yeah...
 
         self.max_sstables = 5 # limit on our SSTables, come on now
-        self.lock = RLock()
+        self.lock = threading.RLock()
 
         self.wal = WALStore(str(self.base_path / "data.db"), str(self.base_path / "wal.log"))
 
@@ -358,9 +360,9 @@ class LSMTree:
             # get the resulting queries from each SSTable
             seen = set()
             for sstable in reversed(self.sstables): # CHECK NEWEST SSTABLE TO OLDEST
-                for key, value in self.memtable.range_scan(start_key, end_key):
+                for key, value in sstable.range_scan(start_key, end_key):
                     if key not in seen:
-                        seen_keys.add(key)
+                        seen.add(key)
                         if value is not None: # skip tombstones - marker that a piece
                         # of data has been deleted rather than immediately removed
                             yield (key, value)
@@ -389,3 +391,86 @@ class LSMTree:
 
         except Exception as e:
             raise DatabaseError(f"compacting failed: {e}")
+    
+    def delete(self, key: str):
+        """Delete a key! Oh no!"""
+        with self.lock:
+            self.wal.delete(key)
+            self.set(key, None) # use None as a tombstone :p this comes up in dist sys
+    
+    def close(self):
+        """Ensure all data is persisted to disk..."""
+        with self.lock:
+            if self.memtable.entries:
+                self._flush_memtable()
+
+            self.wal.checkpoint() # make sure WAL is up to date
+
+
+def main():
+    db = LSMTree("./mydb")
+    print("yo welcome to the write-heavy database bruh. you got a few commands:")
+    print("set <key> <value>\nget <key>\ndel <key>\nrange <start> <end>\nexit")
+
+    try:
+        while True:
+            try:
+                line = input("db> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nall right fine bruh i aint want yo data anyway")
+                break
+            
+            if not line:
+                continue
+
+            parts = line.split(maxsplit = 1)
+            cmd = parts[0].lower()
+
+            try:
+                if cmd == "exit":
+                    print("all right fine yo i aint want yo data anyway")
+                    break
+                
+                elif cmd == "set":
+                    key, value = parts[1].split(maxsplit=1)
+                    db.set(key, value)
+                    print("yea son i DID THAT!")
+                
+                elif cmd == "get":
+                    value = db.get(parts[1].strip())
+                    if not value:
+                        print("yo son i did NOT find that")
+                    else:
+                        print(value)
+                
+                elif cmd == "del":
+                    key = parts[1].strip()
+                    db.delete(key)
+                    print("yea son i DELETED THAT!")
+                
+                elif cmd == "range":
+                    start, end = parts[1].split(maxsplit = 1)
+                    results = list(db.range_query(start, end))
+
+                    if not results:
+                        print("son there were NO results")
+                    
+                    for key, value in results:
+                        print(f"{key}:  {value}")
+                
+                else:
+                    print(f"im ngl i dont know what {cmd} means")
+            
+            except (ValueError, IndexError):
+                print("yea peep the usage bro")
+                print("set <key> <value>\nget <key>\ndel <key>\nrange <start> <end>\nexit")
+            except DatabaseError as e:
+                print(f"Database error: {e}")
+
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    import random
+    
+    main()

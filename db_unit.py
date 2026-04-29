@@ -14,11 +14,7 @@ class TestWALEntry(unittest.TestCase):
         self.assertEqual(entry.key, "name")
         self.assertEqual(entry.value, "bruh")
 
-class TestWALStoreBasicOps(unittest.TestCase):
-    pass
 
-class TestWALStorePersistence(unittest.TestCase):
-    pass
 
 
 if __name__ == "__main__":

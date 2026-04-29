@@ -9,6 +9,7 @@
 PYTHON	:= python3
 MAIN	:= db.py
 TESTS	:= db_unit.py
+DB_PATH := mydb
 
 .PHONY: all run test test-v clean install help
 
@@ -25,7 +26,7 @@ test-v:
 
 clean:
 	@echo "CLEANING GENERATED FILES UP!!!"
-	rm -rf __pycache__ .pytest_cache
+	rm -rf __pycache__ .pytest_cache $(DB_PATH)/
 	find . -type f -name "*.pyc"  -delete
 	find . -type f -name "*.pyo"  -delete
 	find . -type f -name "*.tmp"  -delete

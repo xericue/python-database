@@ -430,17 +430,15 @@ class LSMTree:
 
 def main():
     db = LSMTree("./mydb")
-    print("yo welcome to the write-heavy database bruh. you got a few commands:")
-    print("set <key> <value>\nget <key>\ndel <key>\nrange <start> <end>\nexit\n")
-    print("example of range:\ndb> set item:001 bruh\ndb> set item:002 bruhh\ndb> range item:001 item:002\nitem:001:    bruh\nitem:002:    bruhh\n")
-    
+    print("(☞ﾟヮﾟ)☞  XericKV ☜(ﾟヮﾟ☜)")
+    print("commands: set <key> <value>     get <key>     del <key>     range <start:001> <end:xxx>     exit")
 
     try:
         while True:
             try:
                 line = input("db> ").strip()
             except (EOFError, KeyboardInterrupt):
-                print("\nall right fine bruh i aint want yo data anyway")
+                print("\nfarewell (｡•́︿•̀｡)")
                 break
             
             if not line:
@@ -451,42 +449,43 @@ def main():
 
             try:
                 if cmd == "exit":
-                    print("all right fine yo i aint want yo data anyway")
+                    print("farewell (｡•́︿•̀｡)")
                     break
                 
                 elif cmd == "set":
                     key, value = parts[1].split(maxsplit=1)
                     db.set(key, value)
-                    print("yea son i DID THAT!")
+                    print("OK! (≧∇≦)\n")
                 
                 elif cmd == "get":
                     value = db.get(parts[1].strip())
                     if value is None:
-                        print("yo son i did NOT find that")
+                        print("NOT FOUND... (◕ε◕*)\n")
                     else:
                         print(value)
+                        print(' ')
                 
                 elif cmd == "del":
                     key = parts[1].strip()
                     db.delete(key)
-                    print("yea son i DELETED THAT!")
+                    print("OK! (≧∇≦)\n")
                 
                 elif cmd == "range":
                     start, end = parts[1].split(maxsplit = 1)
                     results = list(db.range_query(start, end))
 
                     if not results:
-                        print("son there were NO results")
+                        print("NOT FOUND... (◕ε◕*)\n")
                     
                     for key, value in results:
                         print(f"{key}:  {value}")
                 
                 else:
-                    print(f"im ngl i dont know what {cmd} means")
+                    print(f"{cmd}?... (◕ε◕*)\n")
             
             except (ValueError, IndexError):
-                print("yea peep the usage bro")
-                print("set <key> <value>\nget <key>\ndel <key>\nrange <start> <end>\nexit")
+                print("(｡•́︿•̀｡) USAGE:")
+                print("commands: set <key> <value>     get <key>     del <key>     range <start:001> <end:xxx>     exit\n")
             except DatabaseError as e:
                 print(f"Database error: {e}")
 
